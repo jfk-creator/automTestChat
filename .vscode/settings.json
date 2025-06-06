@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.dbclient-js": "javascript",
+        "*.sql": "sql",
+        "stdbool.h": "c",
+        "client.h": "c"
+    }
+}

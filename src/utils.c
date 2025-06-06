@@ -10,6 +10,12 @@
 #define ANSI_COLOR_RED "\x1b[31m"
 #define ANSI_COLOR_RESET "\x1b[0m"
 
+static bool debugOn = false;
+
+void setDebugOn() {
+    debugOn = true;
+}
+
 // Helper function to check if styling is supported (i.e., if it's a TTY)
 static int is_terminal(FILE *file) {
     return isatty(fileno(file));
@@ -27,19 +33,21 @@ void normalPrint(const char *fmt, ...) {
 
 // Debug print function: prints to stdout in yellow
 void debugPrint(const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
+    if (debugOn) {
+        va_list args;
+        va_start(args, fmt);
 
-    if (is_terminal(stdout)) {
-        fprintf(stdout, ANSI_COLOR_YELLOW);
-    }
+        if (is_terminal(stdout)) {
+            fprintf(stdout, ANSI_COLOR_YELLOW);
+        }
 
-    vfprintf(stdout, fmt, args);
-    if (is_terminal(stdout)) {
-        fprintf(stdout, ANSI_COLOR_RESET);
+        vfprintf(stdout, fmt, args);
+        if (is_terminal(stdout)) {
+            fprintf(stdout, ANSI_COLOR_RESET);
+        }
+        fprintf(stdout, "\n");
+        va_end(args);
     }
-    fprintf(stdout, "\n");
-    va_end(args);
 }
 
 // Error print function: prints to stderr in red
@@ -61,23 +69,29 @@ void errorPrint(const char *fmt, ...) {
 
 int readArgs(int argc, char **argv) {
     if (argc == 2) {
-        char c = *argv[1];
+        char *arg01 = argv[1];
+        char c = arg01[0];
+        if (c == '0') {
+            normalPrint("Running all tests");
+            return RUN_ALL_TESTS;
+        }
         if (c == '1') {
-            normalPrint("Only running Test 1");
+            normalPrint("Only running test 1");
             return TEST01;
         } else if (c == '2') {
-            normalPrint("Only running Test 2");
+            normalPrint("Only running test 2");
             return TEST02;
         } else if (c == '3') {
-            normalPrint("Only running Test 3");
+            normalPrint("Only running test 3");
             return TEST03;
         } else if (c == '4') {
-            normalPrint("Only running Test 4");
+            normalPrint("Only running test 4");
             return TEST04;
         } else if (c == '5') {
-            normalPrint("Only running Test 5");
+            normalPrint("Only running test 5");
             return TEST05;
         } else {
+            normalPrint("args: %s", arg01);
             errorPrint("Wrong use of arguments.");
             errorPrint("Usage:\n\t atc   --- to run all tests\n\t atc 1 --- to run test 1, etc.");
         }
@@ -87,5 +101,5 @@ int readArgs(int argc, char **argv) {
         errorPrint("Usage:\n\t atc --- to run all tests\n\t atc 1 --- to run test 1, etc.");
     }
     normalPrint("Running all tests.");
-    return RUN_ALL_TEST;
+    return RUN_ALL_TESTS;
 }
