@@ -8,6 +8,7 @@
 
 typedef struct {
     char name[32];
+    char qName[32];
 } ClientArgs;
 void* client(void* arg);
 
