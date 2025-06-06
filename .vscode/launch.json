@@ -1,0 +1,38 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch ATC",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/atc", // Path to your atc executable
+            "args": ["${input:atcArgs}"], // Prompt for arguments
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build", // Working directory for the launched program
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build-atc" // Task to run before launching
+        }
+    ],
+    "inputs": [
+        {
+            "id": "atcArgs",
+            "type": "promptString",
+            "description": "Enter arguments for ATC (e.g., 'server' or 'client <ip> <port>')",
+            "default": ""
+        }
+    ]
+}

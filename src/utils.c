@@ -1,0 +1,91 @@
+#include "utils.h"  // Include our own header first
+
+#include <stdarg.h>  // For va_list, va_start, va_end
+#include <stdio.h>   // For printf, fprintf, vprintf, vfprintf, stdout, stderr, etc.
+#include <string.h>  // For strlen (though not used in this simplified version, good for common utilities)
+#include <unistd.h>  // For isatty (to check if output is a terminal)
+
+// ANSI escape codes for text styling
+#define ANSI_COLOR_YELLOW "\x1b[33m"
+#define ANSI_COLOR_RED "\x1b[31m"
+#define ANSI_COLOR_RESET "\x1b[0m"
+
+// Helper function to check if styling is supported (i.e., if it's a TTY)
+static int is_terminal(FILE *file) {
+    return isatty(fileno(file));
+}
+
+// Normal print function: prints to stdout
+void normalPrint(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    vfprintf(stdout, fmt, args);
+    fprintf(stdout, "\n");
+    va_end(args);
+}
+
+// Debug print function: prints to stdout in yellow
+void debugPrint(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    if (is_terminal(stdout)) {
+        fprintf(stdout, ANSI_COLOR_YELLOW);
+    }
+
+    vfprintf(stdout, fmt, args);
+    if (is_terminal(stdout)) {
+        fprintf(stdout, ANSI_COLOR_RESET);
+    }
+    fprintf(stdout, "\n");
+    va_end(args);
+}
+
+// Error print function: prints to stderr in red
+void errorPrint(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    if (is_terminal(stderr)) {
+        fprintf(stderr, ANSI_COLOR_RED);
+    }
+
+    vfprintf(stderr, fmt, args);
+    if (is_terminal(stderr)) {
+        fprintf(stderr, ANSI_COLOR_RESET);
+    }
+    fprintf(stderr, "\n");
+    va_end(args);
+}
+
+int readArgs(int argc, char **argv) {
+    if (argc == 2) {
+        char c = *argv[1];
+        if (c == '1') {
+            normalPrint("Only running Test 1");
+            return TEST01;
+        } else if (c == '2') {
+            normalPrint("Only running Test 2");
+            return TEST02;
+        } else if (c == '3') {
+            normalPrint("Only running Test 3");
+            return TEST03;
+        } else if (c == '4') {
+            normalPrint("Only running Test 4");
+            return TEST04;
+        } else if (c == '5') {
+            normalPrint("Only running Test 5");
+            return TEST05;
+        } else {
+            errorPrint("Wrong use of arguments.");
+            errorPrint("Usage:\n\t atc   --- to run all tests\n\t atc 1 --- to run test 1, etc.");
+        }
+    }
+    if (argc > 2) {
+        errorPrint("Wrong use of arguments.");
+        errorPrint("Usage:\n\t atc --- to run all tests\n\t atc 1 --- to run test 1, etc.");
+    }
+    normalPrint("Running all tests.");
+    return RUN_ALL_TEST;
+}

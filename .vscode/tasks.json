@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-atc",
+            "type": "shell",
+            "command": "make", // The default 'all' target in Makefile builds 'atc'
+            "group": {
+                "kind": "build",
+                "isDefault": true // Make this the default build task
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Builds the atc executable using Make"
+        },
+        {
+            "label": "clean-atc",
+            "type": "shell",
+            "command": "make clean", // The 'clean' target in Makefile cleans 'atc'
+            "problemMatcher": [],
+            "detail": "Cleans atc build artifacts"
+        }
+    ]
+}
