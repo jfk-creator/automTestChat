@@ -8,6 +8,7 @@ bool runTest_01() {
         errorPrint("clientArgs not allocated");
     }
     strncpy(clientArgs->name, "Frederike", 32);
+    // mqeueu
     int result = pthread_create(&threadID, NULL, client, (void*)clientArgs);
     if (result != 0) {
         errorPrint("Failed to create client thread");
