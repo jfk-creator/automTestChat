@@ -102,7 +102,7 @@ void handleLogin() {
   // receive loginResponse
   debugPrint("starting receive procedure");
   char buffer[BUFFER_SIZE];
-  ssize_t bytesReceived = recv_all(clientArgs->socket, buffer, sizeof(Head));
+  ssize_t bytesReceived = recv(clientArgs->socket, &buffer, sizeof(Head), 0);
   Head receivedPaketHead;
   memcpy(&receivedPaketHead, buffer, sizeof(receivedPaketHead));
   receivedPaketHead.length = ntohs(receivedPaketHead.length);
@@ -114,7 +114,7 @@ void handleLogin() {
     LRE loginResponse;
     memset(buffer, 0, sizeof(buffer));
     bytesReceived =
-        recv_all(clientArgs->socket, buffer, receivedPaketHead.length);
+        recv(clientArgs->socket, &buffer, receivedPaketHead.length, 0);
     memcpy(&loginResponse, buffer, sizeof(loginResponse));
     loginResponse.magic = ntohl(loginResponse.magic);
     if (loginResponse.magic != 0xc001c001) {
