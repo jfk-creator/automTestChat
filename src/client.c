@@ -80,6 +80,7 @@ void handleConnect(int16_t port) {
 }
 
 void handleLogin() {
+  bool checks = true;
   // build paket
   LGQ loginRequest = {.magic = htonl(MAGIC_NUMBER), .version = VERSION};
   strncpy(loginRequest.name, clientArgs->name, sizeof(loginRequest.name) - 1);
@@ -100,7 +101,6 @@ void handleLogin() {
   }
 
   // receive loginResponse
-  debugPrint("starting receive procedure");
   char buffer[BUFFER_SIZE];
   ssize_t bytesReceived = recv(clientArgs->socket, &buffer, sizeof(Head), 0);
   Head receivedPaketHead;
@@ -110,25 +110,37 @@ void handleLogin() {
              bytesReceived, receivedPaketHead.type, receivedPaketHead.length);
 
   if (receivedPaketHead.type == 1) {  // type 1: LRE
-    debugPrint("made it till here");
     LRE loginResponse;
     memset(buffer, 0, sizeof(buffer));
     bytesReceived =
         recv(clientArgs->socket, &buffer, receivedPaketHead.length, 0);
     memcpy(&loginResponse, buffer, sizeof(loginResponse));
     loginResponse.magic = ntohl(loginResponse.magic);
-    if (loginResponse.magic != 0xc001c001) {
-      errorPrint("magic number is: %X but should be: %X", loginResponse.magic,
-                 MAGIC_NUMBER);
-      return;
-    }
     debugPrint("client received body: %d and code: %d and magic: %x",
                bytesReceived, loginResponse.code, loginResponse.magic);
+
+    // checks
+
+    if (loginResponse.code != 0) {
+      errorPrint("code is: %d but should be: 0", loginResponse.code);
+      checks = false;
+    }
+    partSuccesPrint("code is correct");
+    if (loginResponse.magic != 0xc001c001) {
+      errorPrint("magic number is: %X but should be: %X", loginResponse.magic,
+                 0xc001c001);
+      checks = false;
+    }
+    partSuccesPrint("magic number is correct");
+    if (strcmp(loginResponse.sName, "ChatServerG05") != 0) {
+      errorPrint("server name is: %s but should be: %s", loginResponse.sName,
+                 "ChatServerG05");
+      checks = false;
+    }
     partSuccesPrint("client-%s is logged into: %s", clientArgs->name,
                     loginResponse.sName);
   }
-  debugPrint("client-%s received: %d bytes", clientArgs->name, bytesReceived);
-  testSuccesPrint("Login succesfull");
+  if (checks) testSuccesPrint("Login succesfull");
 }
 
 void* client(void* arg) {
