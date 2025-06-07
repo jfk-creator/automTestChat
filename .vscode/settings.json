@@ -3,6 +3,7 @@
         "*.dbclient-js": "javascript",
         "*.sql": "sql",
         "stdbool.h": "c",
-        "client.h": "c"
+        "client.h": "c",
+        "stdint.h": "c"
     }
 }

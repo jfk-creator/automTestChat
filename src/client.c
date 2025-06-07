@@ -81,11 +81,11 @@ void handleConnect(int16_t port) {
 
 void handleLogin() {
   // build paket
-  LGQ loginRequest = {.magic = htons(MAGIC_NUMBER), .version = VERSION};
+  LGQ loginRequest = {.magic = htonl(MAGIC_NUMBER), .version = VERSION};
   strncpy(loginRequest.name, clientArgs->name, sizeof(loginRequest.name) - 1);
   paket_t paket = {.type = 0,
                    .length = htons(sizeof(loginRequest)),
-                   .logingRequest = loginRequest};
+                   .body = {.loginRequest = loginRequest}};
 
   // send it
   ssize_t bytes_sent =
@@ -97,9 +97,38 @@ void handleLogin() {
   } else if (bytes_sent != sizeof(paket)) {
     errorPrint("Warning: Sent only %zd out of %zu bytes for login request.\n",
                bytes_sent, sizeof(paket));
-  } else {
-    normalPrint("Login request sent successfully (%zd bytes).", bytes_sent);
   }
+
+  // receive loginResponse
+  debugPrint("starting receive procedure");
+  char buffer[BUFFER_SIZE];
+  ssize_t bytesReceived = recv_all(clientArgs->socket, buffer, sizeof(Head));
+  Head receivedPaketHead;
+  memcpy(&receivedPaketHead, buffer, sizeof(receivedPaketHead));
+  receivedPaketHead.length = ntohs(receivedPaketHead.length);
+  debugPrint("client received: %d and type: %d and we will need to receiv: %d",
+             bytesReceived, receivedPaketHead.type, receivedPaketHead.length);
+
+  if (receivedPaketHead.type == 1) {  // type 1: LRE
+    debugPrint("made it till here");
+    LRE loginResponse;
+    memset(buffer, 0, sizeof(buffer));
+    bytesReceived =
+        recv_all(clientArgs->socket, buffer, receivedPaketHead.length);
+    memcpy(&loginResponse, buffer, sizeof(loginResponse));
+    loginResponse.magic = ntohl(loginResponse.magic);
+    if (loginResponse.magic != 0xc001c001) {
+      errorPrint("magic number is: %X but should be: %X", loginResponse.magic,
+                 MAGIC_NUMBER);
+      return;
+    }
+    debugPrint("client received body: %d and code: %d and magic: %x",
+               bytesReceived, loginResponse.code, loginResponse.magic);
+    partSuccesPrint("client-%s is logged into: %s", clientArgs->name,
+                    loginResponse.sName);
+  }
+  debugPrint("client-%s received: %d bytes", clientArgs->name, bytesReceived);
+  testSuccesPrint("Login succesfull");
 }
 
 void* client(void* arg) {
@@ -144,7 +173,7 @@ void* client(void* arg) {
     }
   }
   if (mq_close(mq) == -1) {
-    errorPrint("coudn't close mqeueu.");
+    errorPrint("client coudn't close mqeueu.");
     exit(EXIT_FAILURE);
   }
 
