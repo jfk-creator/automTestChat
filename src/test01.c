@@ -98,7 +98,7 @@ void deconstuctClient(ClientArgs* clientArgs) {
 
 bool runTest_01() {
   normalPrint("Starting Test01");
-  ClientArgs* frederike = buildClient("Marlene");
+  ClientArgs* frederike = buildClient("Frederike");
 
   routine01(frederike);
 
