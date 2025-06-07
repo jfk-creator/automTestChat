@@ -92,17 +92,13 @@ ClientArgs* buildClient(char* name) {
 }
 
 void deconstuctClient(ClientArgs* clientArgs) {
-  if (mq_close(clientArgs->mq) == -1) {
-    errorPrint("coudn't close mqeueu.");
-    exit(EXIT_FAILURE);
-  }
   close(clientArgs->socket);
   free(clientArgs);
 }
 
 bool runTest_01() {
   normalPrint("Starting Test01");
-  ClientArgs* frederike = buildClient("Frederike");
+  ClientArgs* frederike = buildClient("Marlene");
 
   routine01(frederike);
 
