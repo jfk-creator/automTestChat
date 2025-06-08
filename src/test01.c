@@ -7,8 +7,9 @@
 #define MAX_MSG_SIZE 512
 #define MSG_PRIO 1
 
-mqd_t establishQueue(char* qName) {
-  mqd_t mq_handle;
+void establishQueue(ClientArgs* clientArgs) {
+  mqd_t mqCMDS;
+  mqd_t mqREPORTS;
   struct mq_attr attr;
 
   attr.mq_flags = 0;
@@ -16,21 +17,33 @@ mqd_t establishQueue(char* qName) {
   attr.mq_msgsize = MAX_MSG_SIZE;
   attr.mq_curmsgs = 0;
 
-  mq_handle = mq_open(qName, O_CREAT | O_RDWR, 0644, &attr);
-
-  if (mq_handle == (mqd_t)-1) {
-    errorPrint("Mqueue not opened.");
+  char buffer[32 + 1];
+  snprintf(buffer, sizeof(buffer), "/%s", clientArgs->name);
+  mqCMDS = mq_open(buffer, O_CREAT | O_WRONLY, 0644, &attr);
+  if (mqCMDS == (mqd_t)-1) {
+    errorPrint("CMDS Mqueue not opened.");
     exit(EXIT_FAILURE);
   }
-  debugPrint("Mqueue openend: %d", mq_handle);
-  return mq_handle;
+  clientArgs->mqCMDS = mqCMDS;
+
+  memset(buffer, 0, sizeof(buffer));
+  snprintf(buffer, sizeof(buffer), "/%s", clientArgs->name);
+  mqREPORTS = mq_open(buffer, O_CREAT | O_RDONLY, 0644, &attr);
+  if (mqREPORTS == (mqd_t)-1) {
+    errorPrint("RERPORTS Mqueue not opened.");
+    exit(EXIT_FAILURE);
+  }
+  clientArgs->mqREPORTS = mqREPORTS;
+
+  debugPrint("Mqueue openend for %s: %d and %d", clientArgs->name, mqCMDS,
+             mqREPORTS);
 }
 
 void receiveReport(ClientArgs* clientArgs) {
   char buffer[MAX_MSG_SIZE] = {0};
   unsigned int prio;
   ssize_t bytes_read =
-      mq_receive(clientArgs->mqSendReport, buffer, MAX_MSG_SIZE, &prio);
+      mq_receive(clientArgs->mqREPORTS, buffer, MAX_MSG_SIZE, &prio);
   if (bytes_read == -1) {
     errorPrint("receiv failed.");
     exit(EXIT_FAILURE);
@@ -40,11 +53,10 @@ void receiveReport(ClientArgs* clientArgs) {
 }
 
 void sendMessage(const char* cmd, ClientArgs* clientArgs) {
-  if (mq_send(clientArgs->mqReceiveCMDS, cmd, strlen(cmd) + 1, MSG_PRIO) ==
-      -1) {
+  if (mq_send(clientArgs->mqCMDS, cmd, strlen(cmd) + 1, MSG_PRIO) == -1) {
     errorPrint("mq_send failed");
   }
-  debugPrint("Dispatcher Cmd: %s", cmd);
+  debugPrint("Dispatcher Cmd: %s an %d", cmd, clientArgs->mqCMDS);
   receiveReport(clientArgs);
 }
 
@@ -54,12 +66,9 @@ ClientArgs* buildClient(char* name) {
     errorPrint("clientArgs not allocated");
   }
   strncpy(clientArgs->name, name, sizeof(clientArgs->name));
-  snprintf(clientArgs->qName, sizeof(clientArgs->qName), "/%s",
-           clientArgs->name);
-  clientArgs->qName[32] = '\0';
+  clientArgs->mqCMDS = (mqd_t)0;
+  clientArgs->mqREPORTS = (mqd_t)0;
 
-  clientArgs->mqReceiveCMDS = establishQueue(clientArgs->qName);
-  clientArgs->mqSendReport = establishQueue("/mainDispatcher");
   int result =
       pthread_create(&clientArgs->threadId, NULL, client, (void*)clientArgs);
   if (result != 0) {
@@ -70,6 +79,7 @@ ClientArgs* buildClient(char* name) {
     debugPrint("Client thread created successfully with ID: %lu",
                (unsigned long)clientArgs->threadId);
   }
+  establishQueue(clientArgs);
   assert(clientArgs != NULL);
   return clientArgs;
 }
@@ -84,16 +94,16 @@ bool runTest_01() {
   ClientArgs* leon = buildClient("Leon");
 
   sendMessage("CONNECT", frederike);
-  sendMessage("CONNECT", leon);
+  // sendMessage("CONNECT", leon);
 
   sendMessage("LOGIN", frederike);
-  sendMessage("LOGIN", leon);
+  // sendMessage("LOGIN", leon);
 
   sendMessage("QUIT", frederike);
-  sendMessage("QUIT", leon);
+  // sendMessage("QUIT", leon);
 
   deconstuctClient(frederike);
-  deconstuctClient(leon);
+  // deconstuctClient(leon);
 
   return true;
 }

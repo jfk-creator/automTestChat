@@ -9,6 +9,7 @@
 
 #include "network.h"
 
+#define MAX_MSGS 10
 #define MAX_MSG_SIZE 512
 #define STANDARD_PORT 8111
 #define BUFFER_SIZE 1024
@@ -16,6 +17,37 @@
 static ClientArgs* clientArgs;
 
 typedef enum { CONNECT, LOGIN, QUIT, SEND, INVALID } COMMANDS;
+
+void establishClientQueue(ClientArgs* clientArgs) {
+  mqd_t mqCMDS;
+  mqd_t mqREPORTS;
+  struct mq_attr attr;
+
+  attr.mq_flags = 0;
+  attr.mq_maxmsg = MAX_MSGS;
+  attr.mq_msgsize = MAX_MSG_SIZE;
+  attr.mq_curmsgs = 0;
+
+  char buffer[32 + 1];
+  snprintf(buffer, sizeof(buffer), "/%s", clientArgs->name);
+  mqCMDS = mq_open(buffer, O_CREAT | O_RDONLY, 0644, &attr);
+  if (mqCMDS == (mqd_t)-1) {
+    errorPrint("CMDS Mqueue not opened.");
+    exit(EXIT_FAILURE);
+  }
+  clientArgs->mqCMDS = mqCMDS;
+
+  memset(buffer, 0, sizeof(buffer));
+  snprintf(buffer, sizeof(buffer), "/%s", clientArgs->name);
+  mqREPORTS = mq_open(buffer, O_CREAT | O_WRONLY, 0644, &attr);
+  if (mqREPORTS == (mqd_t)-1) {
+    errorPrint("RERPORTS Mqueue not opened.");
+    exit(EXIT_FAILURE);
+  }
+  clientArgs->mqREPORTS = mqREPORTS;
+
+  debugPrint("Mqueue openend: %d and %d", mqCMDS, mqREPORTS);
+}
 
 COMMANDS parseCmd(char* mqMsg) {
   debugPrint("%s received: %s", clientArgs->name, mqMsg);
@@ -35,7 +67,7 @@ COMMANDS parseCmd(char* mqMsg) {
 void reportSuccess() {
   char mq_buffer[MAX_MSG_SIZE];
   snprintf(mq_buffer, MAX_MSG_SIZE, "OK");
-  if (mq_send(clientArgs->mqSendReport, mq_buffer, strlen(mq_buffer) + 1, 1) ==
+  if (mq_send(clientArgs->mqREPORTS, mq_buffer, strlen(mq_buffer) + 1, 1) ==
       -1) {
     errorPrint("mq_send failed");
   }
@@ -44,7 +76,7 @@ void reportSuccess() {
 void reportFailure() {
   char mq_buffer[MAX_MSG_SIZE];
   snprintf(mq_buffer, MAX_MSG_SIZE, "FAILED");
-  if (mq_send(clientArgs->mqSendReport, mq_buffer, strlen(mq_buffer) + 1, 1) ==
+  if (mq_send(clientArgs->mqREPORTS, mq_buffer, strlen(mq_buffer) + 1, 1) ==
       -1) {
     errorPrint("mq_send failed");
   }
@@ -53,11 +85,15 @@ void reportFailure() {
 void handleQuit() {
   debugPrint("Client: %s shutsdown.", clientArgs->name);
 
-  if (mq_close(clientArgs->mqReceiveCMDS) == -1) {
+  reportSuccess();
+  if (mq_close(clientArgs->mqCMDS) == -1) {
     errorPrint("coudn't close mqeueu.");
     exit(EXIT_FAILURE);
   }
-  reportSuccess();
+  if (mq_close(clientArgs->mqREPORTS) == -1) {
+    errorPrint("coudn't close mqeueu.");
+    exit(EXIT_FAILURE);
+  }
   pthread_exit(NULL);
 }
 
@@ -160,20 +196,20 @@ bool handleLogin() {
 }
 
 void* client(void* arg) {
-  clientArgs = (ClientArgs*)arg;
-  debugPrint("starting client: %s", clientArgs->name);
-  // establish mqueue
-  mqd_t mqReceiveCMDS = mq_open(clientArgs->qName, O_RDONLY);
-  if (mqReceiveCMDS == (mqd_t)-1) {
-    errorPrint("client-%s: mqReceiveCMDS not openend.", clientArgs->name);
+  clientArgs = malloc(sizeof(ClientArgs));
+  if (clientArgs == NULL) {
+    errorPrint("clientArgs malloc");
     exit(EXIT_FAILURE);
   }
-  debugPrint("client %s opened Mqeueu", clientArgs->name);
+  memcpy(clientArgs, arg, sizeof(ClientArgs));
+  establishClientQueue(clientArgs);
+  debugPrint("starting client: %s", clientArgs->name);
 
   while (1) {
     unsigned int prio;
     char buffer[MAX_MSG_SIZE];
-    ssize_t bytes_read = mq_receive(mqReceiveCMDS, buffer, MAX_MSG_SIZE, &prio);
+    ssize_t bytes_read =
+        mq_receive(clientArgs->mqCMDS, buffer, MAX_MSG_SIZE, &prio);
     if (bytes_read == -1) {
       errorPrint("receiv failed.");
       exit(EXIT_FAILURE);
@@ -191,6 +227,7 @@ void* client(void* arg) {
         handleQuit();
         break;
       case INVALID:
+        checks = false;
         errorPrint("Mq received an invalid command.");
         break;
 
@@ -200,7 +237,7 @@ void* client(void* arg) {
     }
     if (checks) reportSuccess();
   }
-  if (mq_close(mqReceiveCMDS) == -1) {
+  if (mq_close(clientArgs->mqCMDS) == -1) {
     errorPrint("client coudn't close mqeueu.");
     exit(EXIT_FAILURE);
   }
