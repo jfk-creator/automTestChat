@@ -14,8 +14,6 @@
 #define STANDARD_PORT 8111
 #define BUFFER_SIZE 1024
 
-static ClientArgs* clientArgs;
-
 typedef enum { CONNECT, LOGIN, QUIT, SEND, INVALID } COMMANDS;
 
 void establishClientQueue(ClientArgs* clientArgs) {
@@ -35,21 +33,21 @@ void establishClientQueue(ClientArgs* clientArgs) {
     errorPrint("CMDS Mqueue not opened.");
     exit(EXIT_FAILURE);
   }
+
   clientArgs->mqCMDS = mqCMDS;
 
   memset(buffer, 0, sizeof(buffer));
-  snprintf(buffer, sizeof(buffer), "/%s", clientArgs->name);
+  snprintf(buffer, sizeof(buffer), "/R%s", clientArgs->name);
   mqREPORTS = mq_open(buffer, O_CREAT | O_WRONLY, 0644, &attr);
   if (mqREPORTS == (mqd_t)-1) {
     errorPrint("RERPORTS Mqueue not opened.");
     exit(EXIT_FAILURE);
   }
-  clientArgs->mqREPORTS = mqREPORTS;
 
-  debugPrint("Mqueue openend: %d and %d", mqCMDS, mqREPORTS);
+  clientArgs->mqREPORTS = mqREPORTS;
 }
 
-COMMANDS parseCmd(char* mqMsg) {
+COMMANDS parseCmd(char* mqMsg, ClientArgs* clientArgs) {
   debugPrint("%s received: %s", clientArgs->name, mqMsg);
 
   if (strcmp("QUIT", mqMsg) == 0) {
@@ -64,7 +62,7 @@ COMMANDS parseCmd(char* mqMsg) {
   return INVALID;
 }
 
-void reportSuccess() {
+void reportSuccess(ClientArgs* clientArgs) {
   char mq_buffer[MAX_MSG_SIZE];
   snprintf(mq_buffer, MAX_MSG_SIZE, "OK");
   if (mq_send(clientArgs->mqREPORTS, mq_buffer, strlen(mq_buffer) + 1, 1) ==
@@ -73,7 +71,7 @@ void reportSuccess() {
   }
 }
 
-void reportFailure() {
+void reportFailure(ClientArgs* clientArgs) {
   char mq_buffer[MAX_MSG_SIZE];
   snprintf(mq_buffer, MAX_MSG_SIZE, "FAILED");
   if (mq_send(clientArgs->mqREPORTS, mq_buffer, strlen(mq_buffer) + 1, 1) ==
@@ -82,10 +80,10 @@ void reportFailure() {
   }
 }
 
-void handleQuit() {
+void handleQuit(ClientArgs* clientArgs) {
   debugPrint("Client: %s shutsdown.", clientArgs->name);
 
-  reportSuccess();
+  reportSuccess(clientArgs);
   if (mq_close(clientArgs->mqCMDS) == -1) {
     errorPrint("coudn't close mqeueu.");
     exit(EXIT_FAILURE);
@@ -97,7 +95,7 @@ void handleQuit() {
   pthread_exit(NULL);
 }
 
-bool handleConnect(int16_t port) {
+bool handleConnect(int16_t port, ClientArgs* clientArgs) {
   debugPrint("Client: %s connecting to 127.0.0.1:%d", clientArgs->name, port);
   struct sockaddr_in server_addr;
   // char buffer[BUFFER_SIZE] = {0};
@@ -128,7 +126,7 @@ bool handleConnect(int16_t port) {
   return true;
 }
 
-bool handleLogin() {
+bool handleLogin(ClientArgs* clientArgs) {
   bool checks = true;
   // build paket
   LGQ loginRequest = {.magic = htonl(MAGIC_NUMBER), .version = VERSION};
@@ -196,13 +194,10 @@ bool handleLogin() {
 }
 
 void* client(void* arg) {
-  clientArgs = malloc(sizeof(ClientArgs));
-  if (clientArgs == NULL) {
-    errorPrint("clientArgs malloc");
-    exit(EXIT_FAILURE);
-  }
+  ClientArgs* clientArgs = malloc(sizeof(ClientArgs));
   memcpy(clientArgs, arg, sizeof(ClientArgs));
   establishClientQueue(clientArgs);
+  reportSuccess(clientArgs);
   debugPrint("starting client: %s", clientArgs->name);
 
   while (1) {
@@ -216,15 +211,15 @@ void* client(void* arg) {
     }
     buffer[bytes_read] = '\0';
     bool checks = true;
-    switch (parseCmd(buffer)) {
+    switch (parseCmd(buffer, clientArgs)) {
       case CONNECT:
-        checks = handleConnect(STANDARD_PORT);
+        checks = handleConnect(STANDARD_PORT, clientArgs);
         break;
       case LOGIN:
-        checks = handleLogin();
+        checks = handleLogin(clientArgs);
         break;
       case QUIT:
-        handleQuit();
+        handleQuit(clientArgs);
         break;
       case INVALID:
         checks = false;
@@ -235,7 +230,7 @@ void* client(void* arg) {
         errorPrint("Hier hab ich mein Auto nicht geparkt.");
         break;
     }
-    if (checks) reportSuccess();
+    if (checks) reportSuccess(clientArgs);
   }
   if (mq_close(clientArgs->mqCMDS) == -1) {
     errorPrint("client coudn't close mqeueu.");
