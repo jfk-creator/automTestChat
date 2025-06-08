@@ -26,44 +26,26 @@ mqd_t establishQueue(char* qName) {
   return mq_handle;
 }
 
-void routine01(ClientArgs* clientArgs) {
+void receiveReport(ClientArgs* clientArgs) {
   char buffer[MAX_MSG_SIZE] = {0};
-
-  snprintf(buffer, MAX_MSG_SIZE, "CONNECT");
-  if (mq_send(clientArgs->mq, buffer, strlen(buffer) + 1, MSG_PRIO) == -1) {
-    errorPrint("mq_send failed");
-  }
-  debugPrint("Dispatcher: send message");
-
-  sleep(1);
-
-  memset(&buffer, 0, sizeof(buffer));
   unsigned int prio;
-  ssize_t bytes_read = mq_receive(clientArgs->mq, buffer, MAX_MSG_SIZE, &prio);
+  ssize_t bytes_read =
+      mq_receive(clientArgs->mqSendReport, buffer, MAX_MSG_SIZE, &prio);
   if (bytes_read == -1) {
     errorPrint("receiv failed.");
     exit(EXIT_FAILURE);
   }
   buffer[bytes_read] = '\0';
   debugPrint("test01: %s received from %s", buffer, clientArgs->name);
+}
 
-  sleep(1);
-
-  snprintf(buffer, MAX_MSG_SIZE, "LOGIN");
-  if (mq_send(clientArgs->mq, buffer, strlen(buffer) + 1, MSG_PRIO) == -1) {
+void sendMessage(const char* cmd, ClientArgs* clientArgs) {
+  if (mq_send(clientArgs->mqReceiveCMDS, cmd, strlen(cmd) + 1, MSG_PRIO) ==
+      -1) {
     errorPrint("mq_send failed");
   }
-  sleep(1);
-
-  debugPrint("Dispatcher: send message");
-
-  snprintf(buffer, MAX_MSG_SIZE, "QUIT");
-  if (mq_send(clientArgs->mq, buffer, strlen(buffer) + 1, MSG_PRIO) == -1) {
-    errorPrint("mq_send failed");
-  }
-  debugPrint("Dispatcher: send message");
-
-  sleep(3);
+  debugPrint("Dispatcher Cmd: %s", cmd);
+  receiveReport(clientArgs);
 }
 
 ClientArgs* buildClient(char* name) {
@@ -76,7 +58,8 @@ ClientArgs* buildClient(char* name) {
            clientArgs->name);
   clientArgs->qName[32] = '\0';
 
-  clientArgs->mq = establishQueue(clientArgs->qName);
+  clientArgs->mqReceiveCMDS = establishQueue(clientArgs->qName);
+  clientArgs->mqSendReport = establishQueue("/mainDispatcher");
   int result =
       pthread_create(&clientArgs->threadId, NULL, client, (void*)clientArgs);
   if (result != 0) {
@@ -97,12 +80,20 @@ void deconstuctClient(ClientArgs* clientArgs) {
 }
 
 bool runTest_01() {
-  normalPrint("Starting Test01");
   ClientArgs* frederike = buildClient("Frederike");
+  ClientArgs* leon = buildClient("Leon");
 
-  routine01(frederike);
+  sendMessage("CONNECT", frederike);
+  sendMessage("CONNECT", leon);
+
+  sendMessage("LOGIN", frederike);
+  sendMessage("LOGIN", leon);
+
+  sendMessage("QUIT", frederike);
+  sendMessage("QUIT", leon);
 
   deconstuctClient(frederike);
+  deconstuctClient(leon);
 
   return true;
 }

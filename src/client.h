@@ -8,11 +8,12 @@
 #include "utils.h"
 
 typedef struct {
-    char name[32];
-    char qName[32 + 1];
-    int socket;
-    pthread_t threadId;
-    mqd_t mq;
+  char name[32];
+  char qName[32 + 1];
+  int socket;
+  pthread_t threadId;
+  mqd_t mqReceiveCMDS;
+  mqd_t mqSendReport;
 } ClientArgs;
 
 void* client(void* arg);
