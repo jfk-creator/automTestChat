@@ -17,26 +17,40 @@ void establishQueue(ClientArgs* clientArgs) {
   attr.mq_msgsize = MAX_MSG_SIZE;
   attr.mq_curmsgs = 0;
 
-  char buffer[32 + 1];
+  char buffer[32 + 2];
   snprintf(buffer, sizeof(buffer), "/%s", clientArgs->name);
   mqCMDS = mq_open(buffer, O_CREAT | O_WRONLY, 0644, &attr);
   if (mqCMDS == (mqd_t)-1) {
     errorPrint("CMDS Mqueue not opened.");
     exit(EXIT_FAILURE);
   }
+
   clientArgs->mqCMDS = mqCMDS;
 
   memset(buffer, 0, sizeof(buffer));
-  snprintf(buffer, sizeof(buffer), "/%s", clientArgs->name);
+  snprintf(buffer, sizeof(buffer), "/R%s", clientArgs->name);
   mqREPORTS = mq_open(buffer, O_CREAT | O_RDONLY, 0644, &attr);
   if (mqREPORTS == (mqd_t)-1) {
     errorPrint("RERPORTS Mqueue not opened.");
     exit(EXIT_FAILURE);
   }
-  clientArgs->mqREPORTS = mqREPORTS;
 
-  debugPrint("Mqueue openend for %s: %d and %d", clientArgs->name, mqCMDS,
-             mqREPORTS);
+  clientArgs->mqREPORTS = mqREPORTS;
+}
+
+void unlinkQueue(ClientArgs* clientArgs) {
+  char buffer[32 + 2];
+  snprintf(buffer, sizeof(buffer), "/%s", clientArgs->name);
+  if (mq_unlink(buffer) == -1) {
+    perror("mq_unlink failed");
+    errorPrint("Failed to unlink queue %s.", buffer);
+  }
+  memset(buffer, 0, sizeof(buffer));
+  snprintf(buffer, sizeof(buffer), "/R%s", clientArgs->name);
+  if (mq_unlink(buffer) == -1) {
+    perror("mq_unlink failed");
+    errorPrint("Failed to unlink queue %s.", buffer);
+  }
 }
 
 void receiveReport(ClientArgs* clientArgs) {
@@ -80,6 +94,8 @@ ClientArgs* buildClient(char* name) {
                (unsigned long)clientArgs->threadId);
   }
   establishQueue(clientArgs);
+  receiveReport(clientArgs);
+  unlinkQueue(clientArgs);
   assert(clientArgs != NULL);
   return clientArgs;
 }
@@ -94,16 +110,32 @@ bool runTest_01() {
   ClientArgs* leon = buildClient("Leon");
 
   sendMessage("CONNECT", frederike);
-  // sendMessage("CONNECT", leon);
+  sendMessage("CONNECT", leon);
 
   sendMessage("LOGIN", frederike);
-  // sendMessage("LOGIN", leon);
+  sendMessage("LOGIN", leon);
 
   sendMessage("QUIT", frederike);
-  // sendMessage("QUIT", leon);
+  sendMessage("QUIT", leon);
 
   deconstuctClient(frederike);
-  // deconstuctClient(leon);
+  deconstuctClient(leon);
+
+  int8_t count = 63;
+  ClientArgs* userArray[count];
+  for (int8_t i = 0; i < count; i++) {
+    char name[32];
+    snprintf(name, 32, "user_%d", i);
+    userArray[i] = buildClient(name);
+  }
+  for (int8_t i = 0; i < count; i++) {
+    sendMessage("CONNECT", userArray[i]);
+    sendMessage("LOGIN", userArray[i]);
+  }
+  for (int8_t i = 0; i < count; i++) {
+    sendMessage("QUIT", userArray[i]);
+    deconstuctClient(userArray[i]);
+  }
 
   return true;
 }
